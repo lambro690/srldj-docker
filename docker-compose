@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  vpn:
+    image: thrnz/docker-wireguard-pia:latest
+    container_name: VPN
+    restart: always
+    volumes:
+      - ${MOUNT_POINT}/VPN/pia:/pia
+      - ${MOUNT_POINT}/VPN/pia-shared:/pia-shared
+
+    ports:
+      - "8112:8112"
+      - "8989:8989"
+      - "7878:7878"
+      - "9117:9117"
+      - "8686:8686"
+    cap_add:
+      - NET_ADMIN
+      # SYS_MODULE might not be needed with a 5.6+ kernel?
+    environment:
+      - LOCAL_NETWORK=192.168.2.0/24 10.0.4.0/24 10.0.3.0/24
+      - LOC=ca
+      - USER=${VPN_USERNAME}
+      - PASS=${VPN_PASSWORD}
+      - PORT_FORWARDING=1
+      - VPNDNS=1.1.1.1,9.9.9.9
+     # - WG_USERSPACE=1
+      - FIREWALL=0
+      
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv6.conf.default.disable_ipv6=1
+      - net.ipv6.conf.all.disable_ipv6=1
+      - net.ipv6.conf.lo.disable_ipv6=1
+    healthcheck:
+      test: ping -c 1 www.google.com || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  deluge:
+    image: ghcr.io/linuxserver/deluge
+    container_name: Deluge
+    network_mode: "service:vpn"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+      - UMASK_SET=000 #optional
+      - DELUGE_LOGLEVEL=error #optional
+    volumes:
+      - ${MOUNT_POINT}/Deluge/config:/config
+      - ${MOUNT_POINT}/Deluge/downloads:/downloads
+  radarr:
+    image: linuxserver/radarr
+    container_name: Radarr
+    restart: always
+    network_mode: "service:vpn"
+    environment:
+      - PGID=1005
+      - PUID=1005
+      - TZ=America/New_York
+    volumes:
+      - ${MOUNT_POINT}/Radarr:/config
+      - ${MOUNT_POINT}/Deluge/downloads:/downloads
+      - ${MEDIA_MOUNT_POINT}/Movies:/mnt/Movies
+  sonarr:
+    image: linuxserver/sonarr
+    container_name: Sonarr
+    restart: always
+    network_mode: "service:vpn"
+    environment:
+      - PGID=1005
+      - PUID=1005
+      - TZ=America/New_York
+    volumes:
+      - ${MOUNT_POINT}/Sonarr:/config
+      - ${MEDIA_MOUNT_POINT}/TV:/mnt/TV
+      - ${MEDIA_MOUNT_POINT}/TV_Archive:/mnt/TV_Archive
+      - ${MOUNT_POINT}/Deluge/downloads:/downloads
+  lidarr:
+    image: linuxserver/lidarr
+    container_name: Lidarr
+    restart: always
+    network_mode: "service:vpn"
+    environment:
+      - PGID=1005
+      - PUID=1005
+      - TZ=America/New_York
+    volumes:
+      - ${MOUNT_POINT}/Lidarr/config:/config
+      - ${MEDIA_MOUNT_POINT}/Music:/music
+      - ${MOUNT_POINT}/Deluge/downloads:/downloads
+  jackett:
+    image: linuxserver/jackett
+    container_name: Jackett
+    restart: always
+    network_mode: "service:vpn"
+    environment:
+      - PGID=1005
+      - PUID=1005
+      - TZ=America/New_York
+    volumes:
+      - ${MOUNT_POINT}/Jackett/config:/config
+      - ${MOUNT_POINT}/Jackett/downloads:/downloads
